@@ -37,6 +37,7 @@ import {
   X,
 } from "lucide-react";
 import { buildEditingChecklist, buildPublishPlan, buildRemixPrompt, buildRouteExecutionMarkdown } from "@/lib/export-text";
+import type { ModelProviderId, ModelProviderPreset } from "@/lib/model-providers";
 import type { EditIdea, InspirationReport, MediaAsset, Project, ProjectWorkspace, RouteExecutionPack, TimelineSegment } from "@/lib/types";
 
 const platformOptions = ["小红书", "抖音", "B 站", "朋友圈", "视频号"];
@@ -45,13 +46,12 @@ const briefChips = ["30 秒以内", "不要露脸", "更像小红书", "搞笑�
 type FlowStage = "cover" | "material" | "brief" | "inspiration" | "execute";
 type AssetIntent = NonNullable<MediaAsset["userIntent"]>;
 type LocalSettings = {
-  provider: "local" | "zhipu" | "openai";
-  openaiModel: string;
-  openaiVisionModel: string;
-  zhipuModel: string;
-  zhipuVisionModel: string;
-  hasOpenaiKey: boolean;
-  hasZhipuKey: boolean;
+  provider: ModelProviderId;
+  providerOptions: ModelProviderPreset[];
+  apiKeyConfigured: Record<ModelProviderId, boolean>;
+  currentBaseURL: string;
+  currentTextModel: string;
+  currentVisionModel: string;
   storageRoot: string;
   generatedRoot: string;
   storageBytes: number;
@@ -60,12 +60,10 @@ type LocalSettings = {
 
 const defaultSettingsForm = {
   provider: "local" as LocalSettings["provider"],
-  openaiApiKey: "",
-  openaiModel: "gpt-5.1-mini",
-  openaiVisionModel: "gpt-5.1-mini",
-  zhipuApiKey: "",
-  zhipuModel: "glm-4-flash",
-  zhipuVisionModel: "glm-4v-flash",
+  apiKey: "",
+  baseURL: "",
+  textModel: "",
+  visionModel: "",
 };
 
 const assetIntentOptions: Array<{ value: AssetIntent; label: string; hint: string }> = [
@@ -153,6 +151,20 @@ export default function Home() {
     inspiration: "灵感",
     execute: "执行",
   }[flowStage];
+  const providerOptions = localSettings?.providerOptions ?? [];
+  const selectedProviderOption = providerOptions.find((item) => item.id === settingsForm.provider);
+
+  const selectModelProvider = (provider: ModelProviderId) => {
+    const option = providerOptions.find((item) => item.id === provider);
+    setSettingsForm((current) => ({
+      ...current,
+      provider,
+      apiKey: "",
+      baseURL: option?.defaultBaseURL ?? "",
+      textModel: option?.defaultTextModel ?? "",
+      visionModel: option?.defaultVisionModel ?? "",
+    }));
+  };
 
   const applyWorkspace = useCallback((workspace: ProjectWorkspace) => {
     setProject(workspace.project);
@@ -173,12 +185,10 @@ export default function Home() {
     setSettingsForm((current) => ({
       ...current,
       provider: settings.provider,
-      openaiModel: settings.openaiModel,
-      openaiVisionModel: settings.openaiVisionModel,
-      zhipuModel: settings.zhipuModel,
-      zhipuVisionModel: settings.zhipuVisionModel,
-      openaiApiKey: "",
-      zhipuApiKey: "",
+      apiKey: "",
+      baseURL: settings.currentBaseURL,
+      textModel: settings.currentTextModel,
+      visionModel: settings.currentVisionModel,
     }));
   }, []);
 
@@ -234,8 +244,7 @@ export default function Home() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           ...settingsForm,
-          openaiApiKey: settingsForm.openaiApiKey.trim() ? settingsForm.openaiApiKey : undefined,
-          zhipuApiKey: settingsForm.zhipuApiKey.trim() ? settingsForm.zhipuApiKey : undefined,
+          apiKey: settingsForm.apiKey.trim() ? settingsForm.apiKey : undefined,
         }),
       });
       const data = await response.json();
@@ -586,44 +595,47 @@ export default function Home() {
                   <label>
                     Provider
                     <select
-                      onChange={(event) => setSettingsForm((current) => ({ ...current, provider: event.target.value as LocalSettings["provider"] }))}
+                      onChange={(event) => selectModelProvider(event.target.value as ModelProviderId)}
                       value={settingsForm.provider}
                     >
-                      <option value="local">local 本地规则</option>
-                      <option value="zhipu">zhipu 智谱</option>
-                      <option value="openai">openai / 中转站</option>
+                      {providerOptions.map((provider) => (
+                        <option key={provider.id} value={provider.id}>{provider.name}</option>
+                      ))}
                     </select>
                   </label>
-                  <div className="settings-status">
-                    <span className={localSettings?.hasZhipuKey ? "ready" : ""}>智谱 {localSettings?.hasZhipuKey ? "已配置" : "未配置"}</span>
-                    <span className={localSettings?.hasOpenaiKey ? "ready" : ""}>OpenAI {localSettings?.hasOpenaiKey ? "已配置" : "未配置"}</span>
+                  <div className="settings-status multi">
+                    {providerOptions.filter((provider) => provider.id !== "local").map((provider) => (
+                      <span className={localSettings?.apiKeyConfigured?.[provider.id] ? "ready" : ""} key={provider.id}>
+                        {provider.shortName} {localSettings?.apiKeyConfigured?.[provider.id] ? "已配置" : "未配置"}
+                      </span>
+                    ))}
                   </div>
-                  <label>
-                    智谱 API key
-                    <input
-                      onChange={(event) => setSettingsForm((current) => ({ ...current, zhipuApiKey: event.target.value }))}
-                      placeholder={localSettings?.hasZhipuKey ? "已保存；留空表示不修改" : "填入你的智谱 key"}
-                      type="password"
-                      value={settingsForm.zhipuApiKey}
-                    />
-                  </label>
-                  <div className="settings-row">
-                    <label>文本模型<input onChange={(event) => setSettingsForm((current) => ({ ...current, zhipuModel: event.target.value }))} value={settingsForm.zhipuModel} /></label>
-                    <label>视觉模型<input onChange={(event) => setSettingsForm((current) => ({ ...current, zhipuVisionModel: event.target.value }))} value={settingsForm.zhipuVisionModel} /></label>
-                  </div>
-                  <label>
-                    OpenAI API key
-                    <input
-                      onChange={(event) => setSettingsForm((current) => ({ ...current, openaiApiKey: event.target.value }))}
-                      placeholder={localSettings?.hasOpenaiKey ? "已保存；留空表示不修改" : "填入你的 OpenAI 或中转站 key"}
-                      type="password"
-                      value={settingsForm.openaiApiKey}
-                    />
-                  </label>
-                  <div className="settings-row">
-                    <label>文本模型<input onChange={(event) => setSettingsForm((current) => ({ ...current, openaiModel: event.target.value }))} value={settingsForm.openaiModel} /></label>
-                    <label>视觉模型<input onChange={(event) => setSettingsForm((current) => ({ ...current, openaiVisionModel: event.target.value }))} value={settingsForm.openaiVisionModel} /></label>
-                  </div>
+                  {selectedProviderOption && <small className="settings-note">{selectedProviderOption.helpText}</small>}
+                  {settingsForm.provider !== "local" && (
+                    <>
+                      <label>
+                        API key
+                        <input
+                          onChange={(event) => setSettingsForm((current) => ({ ...current, apiKey: event.target.value }))}
+                          placeholder={localSettings?.apiKeyConfigured?.[settingsForm.provider] ? "已保存；留空表示不修改" : "填入当前供应商的 API key"}
+                          type="password"
+                          value={settingsForm.apiKey}
+                        />
+                      </label>
+                      <label>
+                        Base URL
+                        <input
+                          onChange={(event) => setSettingsForm((current) => ({ ...current, baseURL: event.target.value }))}
+                          placeholder="OpenAI-compatible baseURL，可留空使用默认"
+                          value={settingsForm.baseURL}
+                        />
+                      </label>
+                      <div className="settings-row">
+                        <label>文本模型<input onChange={(event) => setSettingsForm((current) => ({ ...current, textModel: event.target.value }))} value={settingsForm.textModel} /></label>
+                        <label>视觉模型<input onChange={(event) => setSettingsForm((current) => ({ ...current, visionModel: event.target.value }))} value={settingsForm.visionModel} /></label>
+                      </div>
+                    </>
+                  )}
                   <button className="settings-primary" disabled={savingSettings} onClick={saveLocalSettings} type="button">
                     {savingSettings ? <LoaderCircle className="spin" size={15} /> : <Save size={15} />}
                     保存到 .env.local

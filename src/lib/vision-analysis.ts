@@ -1,17 +1,9 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import OpenAI from "openai";
+import { resolveAiProvider } from "./ai-provider-config";
 import { describeBestUse } from "./media-analysis";
 import type { MediaAsset } from "./types";
-
-type VisionProvider = "openai" | "zhipu";
-
-type VisionConfig = {
-  provider?: VisionProvider;
-  apiKey?: string;
-  model?: string;
-  baseURL?: string;
-};
 
 type VisionPayload = {
   visualSummary?: string;
@@ -33,38 +25,6 @@ type VisionResult =
   | { status: "ready"; model: string; payload: Required<VisionPayload> };
 
 const allowedUses: MediaAsset["bestUse"][] = ["hook", "scene", "detail", "transition", "ending", "unknown"];
-
-function providerConfig(): VisionConfig {
-  const requested = (process.env.AI_PROVIDER ?? "").toLowerCase();
-
-  if (requested === "openai" && process.env.OPENAI_API_KEY) {
-    return { provider: "openai", apiKey: process.env.OPENAI_API_KEY, model: process.env.OPENAI_VISION_MODEL || process.env.OPENAI_MODEL || "gpt-5.1-mini" };
-  }
-
-  if (requested === "zhipu" && process.env.ZHIPU_API_KEY) {
-    return {
-      provider: "zhipu",
-      apiKey: process.env.ZHIPU_API_KEY,
-      model: process.env.ZHIPU_VISION_MODEL || "glm-4v-flash",
-      baseURL: "https://open.bigmodel.cn/api/paas/v4/",
-    };
-  }
-
-  if (process.env.ZHIPU_API_KEY) {
-    return {
-      provider: "zhipu",
-      apiKey: process.env.ZHIPU_API_KEY,
-      model: process.env.ZHIPU_VISION_MODEL || "glm-4v-flash",
-      baseURL: "https://open.bigmodel.cn/api/paas/v4/",
-    };
-  }
-
-  if (process.env.OPENAI_API_KEY) {
-    return { provider: "openai", apiKey: process.env.OPENAI_API_KEY, model: process.env.OPENAI_VISION_MODEL || process.env.OPENAI_MODEL || "gpt-5.1-mini" };
-  }
-
-  return {};
-}
 
 function extractJson(text: string) {
   const trimmed = text.trim();
@@ -119,8 +79,8 @@ async function imageDataUrl(publicPath: string) {
 }
 
 export async function analyzeAssetKeyframes(asset: MediaAsset): Promise<VisionResult> {
-  const config = providerConfig();
-  if (!config.apiKey || !config.provider || !config.model) {
+  const config = resolveAiProvider("vision");
+  if (!config) {
     return { status: "skipped", reason: "没有配置视觉模型 API key。" };
   }
 
@@ -159,7 +119,7 @@ export async function analyzeAssetKeyframes(asset: MediaAsset): Promise<VisionRe
 
     const client = new OpenAI({ apiKey: config.apiKey, baseURL: config.baseURL });
     const completion = await client.chat.completions.create({
-      model: config.model,
+      model: config.visionModel,
       messages: [{ role: "user", content: [{ type: "text", text: prompt }, ...imageParts] as unknown as string }],
       temperature: 0.2,
     });
@@ -168,13 +128,13 @@ export async function analyzeAssetKeyframes(asset: MediaAsset): Promise<VisionRe
 
     return {
       status: "ready",
-      model: config.model,
+      model: config.visionModel,
       payload: normalizePayload(parsed, asset),
     };
   } catch (error) {
     return {
       status: "failed",
-      model: config.model,
+      model: config.visionModel,
       reason: error instanceof Error ? error.message : "视觉分析失败。",
     };
   }

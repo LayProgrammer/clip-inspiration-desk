@@ -12,12 +12,10 @@ export async function POST(request: Request) {
   const body = await request.json().catch(() => ({}));
   const settings = await writeLocalSettings({
     provider: String(body.provider ?? "local"),
-    openaiApiKey: body.openaiApiKey === undefined ? undefined : String(body.openaiApiKey),
-    openaiModel: String(body.openaiModel ?? ""),
-    openaiVisionModel: String(body.openaiVisionModel ?? ""),
-    zhipuApiKey: body.zhipuApiKey === undefined ? undefined : String(body.zhipuApiKey),
-    zhipuModel: String(body.zhipuModel ?? ""),
-    zhipuVisionModel: String(body.zhipuVisionModel ?? ""),
+    apiKey: body.apiKey === undefined ? undefined : String(body.apiKey),
+    baseURL: body.baseURL === undefined ? undefined : String(body.baseURL),
+    textModel: String(body.textModel ?? ""),
+    visionModel: body.visionModel === undefined ? undefined : String(body.visionModel),
   });
 
   return NextResponse.json(settings);

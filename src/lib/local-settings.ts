@@ -1,14 +1,14 @@
 import { mkdir, readFile, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { getModelProviderPreset, isModelProviderId, modelProviderPresets, type ModelProviderId } from "./model-providers";
 
 export type LocalSettings = {
-  provider: "local" | "zhipu" | "openai";
-  openaiModel: string;
-  openaiVisionModel: string;
-  zhipuModel: string;
-  zhipuVisionModel: string;
-  hasOpenaiKey: boolean;
-  hasZhipuKey: boolean;
+  provider: ModelProviderId;
+  providerOptions: typeof modelProviderPresets;
+  apiKeyConfigured: Record<ModelProviderId, boolean>;
+  currentBaseURL: string;
+  currentTextModel: string;
+  currentVisionModel: string;
   storageRoot: string;
   generatedRoot: string;
   storageBytes: number;
@@ -58,16 +58,24 @@ async function folderSize(target: string): Promise<number> {
 
 export async function readLocalSettings(): Promise<LocalSettings> {
   const env = { ...process.env, ...(await readEnvFile()) };
-  const provider = (env.AI_PROVIDER === "zhipu" || env.AI_PROVIDER === "openai" ? env.AI_PROVIDER : "local") as LocalSettings["provider"];
+  const requestedProvider = String(env.AI_PROVIDER ?? "local").toLowerCase();
+  const provider = isModelProviderId(requestedProvider) ? requestedProvider : "local";
+  const preset = getModelProviderPreset(provider);
+  const prefix = preset.envPrefix;
+  const currentBaseURL = prefix ? env[`${prefix}_BASE_URL`] || preset.defaultBaseURL || "" : "";
+  const currentTextModel = prefix ? env[`${prefix}_MODEL`] || preset.defaultTextModel : "";
+  const currentVisionModel = prefix ? env[`${prefix}_VISION_MODEL`] || preset.defaultVisionModel || env[`${prefix}_MODEL`] || "" : "";
+  const apiKeyConfigured = Object.fromEntries(
+    modelProviderPresets.map((item) => [item.id, item.envPrefix ? Boolean(env[`${item.envPrefix}_API_KEY`]) : false]),
+  ) as Record<ModelProviderId, boolean>;
 
   return {
     provider,
-    openaiModel: env.OPENAI_MODEL || "gpt-5.1-mini",
-    openaiVisionModel: env.OPENAI_VISION_MODEL || env.OPENAI_MODEL || "gpt-5.1-mini",
-    zhipuModel: env.ZHIPU_MODEL || "glm-4-flash",
-    zhipuVisionModel: env.ZHIPU_VISION_MODEL || "glm-4v-flash",
-    hasOpenaiKey: Boolean(env.OPENAI_API_KEY),
-    hasZhipuKey: Boolean(env.ZHIPU_API_KEY),
+    providerOptions: modelProviderPresets,
+    apiKeyConfigured,
+    currentBaseURL,
+    currentTextModel,
+    currentVisionModel,
     storageRoot,
     generatedRoot,
     storageBytes: await folderSize(storageRoot),
@@ -77,37 +85,47 @@ export async function readLocalSettings(): Promise<LocalSettings> {
 
 export async function writeLocalSettings(input: {
   provider?: string;
-  openaiApiKey?: string;
-  openaiModel?: string;
-  openaiVisionModel?: string;
-  zhipuApiKey?: string;
-  zhipuModel?: string;
-  zhipuVisionModel?: string;
+  apiKey?: string;
+  baseURL?: string;
+  textModel?: string;
+  visionModel?: string;
 }) {
   const current = await readEnvFile();
-  const next = {
-    AI_PROVIDER: input.provider || current.AI_PROVIDER || "local",
-    OPENAI_API_KEY: input.openaiApiKey !== undefined ? input.openaiApiKey : current.OPENAI_API_KEY || "",
-    OPENAI_MODEL: input.openaiModel || current.OPENAI_MODEL || "gpt-5.1-mini",
-    OPENAI_VISION_MODEL: input.openaiVisionModel || current.OPENAI_VISION_MODEL || current.OPENAI_MODEL || "gpt-5.1-mini",
-    ZHIPU_API_KEY: input.zhipuApiKey !== undefined ? input.zhipuApiKey : current.ZHIPU_API_KEY || "",
-    ZHIPU_MODEL: input.zhipuModel || current.ZHIPU_MODEL || "glm-4-flash",
-    ZHIPU_VISION_MODEL: input.zhipuVisionModel || current.ZHIPU_VISION_MODEL || "glm-4v-flash",
+  const requestedProvider = String(input.provider || current.AI_PROVIDER || "local").toLowerCase();
+  const provider = isModelProviderId(requestedProvider) ? requestedProvider : "local";
+  const selectedPreset = getModelProviderPreset(provider);
+  const next: Record<string, string> = {
+    ...current,
+    AI_PROVIDER: provider,
   };
 
-  const lines = [
+  for (const preset of modelProviderPresets) {
+    if (!preset.envPrefix) continue;
+    next[`${preset.envPrefix}_API_KEY`] = current[`${preset.envPrefix}_API_KEY`] || "";
+    next[`${preset.envPrefix}_BASE_URL`] = current[`${preset.envPrefix}_BASE_URL`] || preset.defaultBaseURL || "";
+    next[`${preset.envPrefix}_MODEL`] = current[`${preset.envPrefix}_MODEL`] || preset.defaultTextModel;
+    next[`${preset.envPrefix}_VISION_MODEL`] = current[`${preset.envPrefix}_VISION_MODEL`] || preset.defaultVisionModel || next[`${preset.envPrefix}_MODEL`];
+  }
+
+  if (selectedPreset.envPrefix) {
+    const prefix = selectedPreset.envPrefix;
+    if (input.apiKey !== undefined) next[`${prefix}_API_KEY`] = input.apiKey;
+    if (input.baseURL !== undefined) next[`${prefix}_BASE_URL`] = input.baseURL;
+    if (input.textModel) next[`${prefix}_MODEL`] = input.textModel;
+    if (input.visionModel !== undefined) next[`${prefix}_VISION_MODEL`] = input.visionModel;
+  }
+
+  const lines: string[] = [
     "# Local-only configuration. Do not commit this file.",
     `AI_PROVIDER=${next.AI_PROVIDER}`,
     "",
-    `OPENAI_API_KEY=${next.OPENAI_API_KEY}`,
-    `OPENAI_MODEL=${next.OPENAI_MODEL}`,
-    `OPENAI_VISION_MODEL=${next.OPENAI_VISION_MODEL}`,
-    "",
-    `ZHIPU_API_KEY=${next.ZHIPU_API_KEY}`,
-    `ZHIPU_MODEL=${next.ZHIPU_MODEL}`,
-    `ZHIPU_VISION_MODEL=${next.ZHIPU_VISION_MODEL}`,
-    "",
   ];
+
+  for (const preset of modelProviderPresets) {
+    if (!preset.envPrefix) continue;
+    const prefix = preset.envPrefix;
+    lines.push(`# ${preset.name}`, `${prefix}_API_KEY=${next[`${prefix}_API_KEY`]}`, `${prefix}_BASE_URL=${next[`${prefix}_BASE_URL`]}`, `${prefix}_MODEL=${next[`${prefix}_MODEL`]}`, `${prefix}_VISION_MODEL=${next[`${prefix}_VISION_MODEL`]}`, "");
+  }
 
   await writeFile(envPath, lines.join("\n"), "utf8");
   Object.assign(process.env, next);

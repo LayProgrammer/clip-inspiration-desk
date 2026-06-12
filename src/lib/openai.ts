@@ -1,5 +1,6 @@
 import OpenAI from "openai";
 import { randomUUID } from "node:crypto";
+import { resolveAiProvider } from "./ai-provider-config";
 import { buildInspirationPrompt } from "./prompts";
 import { normalizeDiagnosis, normalizeInspirationReport } from "./report-normalize";
 import type { EditIdea, InspirationReport, MediaAsset, TimelineSegment } from "./types";
@@ -19,8 +20,6 @@ type AiInspirationPayload = {
   timeline: AiTimelineItem[];
   report: AiReport;
 };
-
-type AiProvider = "openai" | "zhipu";
 
 function extractJson(text: string) {
   const trimmed = text.trim();
@@ -67,46 +66,6 @@ function defaultDiagnosis(media: MediaAsset[], routeTitle: string): InspirationR
 
 export function hasOpenAIKey() {
   return Boolean(process.env.OPENAI_API_KEY);
-}
-
-function providerConfig(): { provider?: AiProvider; apiKey?: string; model?: string; baseURL?: string } {
-  const requested = (process.env.AI_PROVIDER ?? "").toLowerCase();
-
-  if (requested === "zhipu") {
-    return {
-      provider: "zhipu",
-      apiKey: process.env.ZHIPU_API_KEY,
-      model: process.env.ZHIPU_MODEL || "glm-4-flash",
-      baseURL: "https://open.bigmodel.cn/api/paas/v4/",
-    };
-  }
-
-  if (requested === "openai") {
-    return {
-      provider: "openai",
-      apiKey: process.env.OPENAI_API_KEY,
-      model: process.env.OPENAI_MODEL || "gpt-5.1-mini",
-    };
-  }
-
-  if (process.env.ZHIPU_API_KEY) {
-    return {
-      provider: "zhipu",
-      apiKey: process.env.ZHIPU_API_KEY,
-      model: process.env.ZHIPU_MODEL || "glm-4-flash",
-      baseURL: "https://open.bigmodel.cn/api/paas/v4/",
-    };
-  }
-
-  if (process.env.OPENAI_API_KEY) {
-    return {
-      provider: "openai",
-      apiKey: process.env.OPENAI_API_KEY,
-      model: process.env.OPENAI_MODEL || "gpt-5.1-mini",
-    };
-  }
-
-  return {};
 }
 
 function normalizePayload(payload: AiInspirationPayload, projectId: string, media: MediaAsset[]) {
@@ -179,33 +138,21 @@ export async function generateAiInspiration(
   mood: string,
   description: string,
 ) {
-  const config = providerConfig();
-  if (!config.apiKey || !config.provider || !config.model) return undefined;
+  const config = resolveAiProvider("text");
+  if (!config) return undefined;
 
   const prompt = buildInspirationPrompt(media, platform, mood, description);
-
-  if (config.provider === "openai") {
-    const client = new OpenAI({ apiKey: config.apiKey });
-    const response = await client.responses.create({
-      model: config.model,
-      input: prompt,
-    });
-
-    const parsed = JSON.parse(extractJson(response.output_text)) as AiInspirationPayload;
-    return { ...normalizePayload(parsed, projectId, media), provider: "openai", model: config.model };
-  }
-
   const client = new OpenAI({
     apiKey: config.apiKey,
     baseURL: config.baseURL,
   });
   const completion = await client.chat.completions.create({
-    model: config.model,
+    model: config.textModel,
     messages: [{ role: "user", content: prompt }],
     temperature: 0.7,
   });
   const rawText = completion.choices[0]?.message?.content ?? "";
   const parsed = JSON.parse(extractJson(rawText)) as AiInspirationPayload;
 
-  return { ...normalizePayload(parsed, projectId, media), provider: "zhipu", model: config.model };
+  return { ...normalizePayload(parsed, projectId, media), provider: config.providerName, model: config.textModel };
 }

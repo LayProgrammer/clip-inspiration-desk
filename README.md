@@ -144,12 +144,23 @@ AI_PROVIDER=local
 
 本地模式会使用规则生成基础灵感，不会调用云端视觉模型。
 
+当前内置这些供应商预设：
+
+- `zhipu`：智谱 GLM，文本和视觉都可用。
+- `openai`：OpenAI 官方或中转站，可填写 `OPENAI_BASE_URL`。
+- `deepseek`：DeepSeek，适合低成本文本灵感生成；默认不启用视觉读帧。
+- `qwen`：通义千问 OpenAI 兼容接口，文本和视觉都可用。
+- `moonshot`：Moonshot Kimi，适合长文本整理；默认不启用视觉读帧。
+- `doubao`：火山豆包 / 方舟 OpenAI 兼容接口，文本和视觉都可用。
+- `custom`：自定义 OpenAI-compatible 服务，比如 One API、New API 或 GPT 中转站。
+
 启用智谱：
 
 ```bash
 AI_PROVIDER=zhipu
 
 ZHIPU_API_KEY=your_key_here
+ZHIPU_BASE_URL=https://open.bigmodel.cn/api/paas/v4/
 ZHIPU_MODEL=glm-4-flash
 ZHIPU_VISION_MODEL=glm-4v-flash
 ```
@@ -160,11 +171,23 @@ ZHIPU_VISION_MODEL=glm-4v-flash
 AI_PROVIDER=openai
 
 OPENAI_API_KEY=your_key_here
+OPENAI_BASE_URL=
 OPENAI_MODEL=gpt-5.1-mini
 OPENAI_VISION_MODEL=gpt-5.1-mini
 ```
 
-也可以在应用右上角的“本地设置”面板里配置这些内容。
+启用自定义中转站：
+
+```bash
+AI_PROVIDER=custom
+
+CUSTOM_API_KEY=your_key_here
+CUSTOM_BASE_URL=https://your-proxy.example.com/v1
+CUSTOM_MODEL=your-text-model
+CUSTOM_VISION_MODEL=your-vision-model
+```
+
+也可以在应用右上角的“本地设置”面板里选择供应商、填写 baseURL 和模型名。
 
 不要提交真实 API key。
 
@@ -218,7 +241,7 @@ public/generated/        本地缩略图和关键帧，Git 已忽略
 - 首次启动向导
 - 素材篮备注
 - 对当前路线执行包进行二次调整
-- 更多 OpenAI-compatible 服务商预设
+- AI 配置连通性测试
 - 面向非技术用户的 Windows 安装包
 - 桌面版封装预研，后续可考虑 Tauri 或 Electron
 
