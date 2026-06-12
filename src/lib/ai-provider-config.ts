@@ -33,6 +33,8 @@ function configuredProvider(providerId: ModelProviderId, mode: "text" | "vision"
 
 export function resolveAiProvider(mode: "text" | "vision") {
   const requested = String(process.env.AI_PROVIDER ?? "").toLowerCase();
+  if (requested === "local") return undefined;
+
   if (isModelProviderId(requested) && requested !== "local") {
     return configuredProvider(requested, mode);
   }

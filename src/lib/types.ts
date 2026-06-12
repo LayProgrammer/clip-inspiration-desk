@@ -110,6 +110,17 @@ export type RouteExecutionPack = {
   subtitleStyle: string;
   checklist: RouteExecutionStep[];
   finalReview: string[];
+  followUps?: RouteFollowUp[];
+  createdAt: string;
+};
+
+export type RouteFollowUp = {
+  id: string;
+  question: string;
+  answer: string;
+  source: "ai" | "local";
+  provider?: string;
+  model?: string;
   createdAt: string;
 };
 

@@ -126,6 +126,13 @@ export function buildRouteExecutionMarkdown(
     "## 发布前复查",
     ...routePack.finalReview.map((item) => `- ${item}`),
     "",
+    ...(routePack.followUps?.length
+      ? [
+          "## 已追问结果",
+          ...routePack.followUps.map((item, index) => [`### ${index + 1}. ${item.question}`, "", item.answer].join("\n")),
+          "",
+        ]
+      : []),
     "## 可继续追问 AI",
     ...(report?.remixPrompts ?? ["把这套执行包改得更适合我当前的平台和素材。"]).map((item) => `- ${item}`),
   ].join("\n");

@@ -43,6 +43,7 @@ import type { EditIdea, InspirationReport, MediaAsset, Project, ProjectWorkspace
 const platformOptions = ["小红书", "抖音", "B 站", "朋友圈", "视频号"];
 const moodOptions = ["生活感", "搞笑快切", "电影感", "旅行日记", "安静叙事"];
 const briefChips = ["30 秒以内", "不要露脸", "更像小红书", "搞笑反差", "电影感一点", "保留现场声", "适合朋友圈", "不要太网红"];
+const followUpQuickQuestions = ["压缩到 20 秒怎么剪？", "帮我改得更有反差", "不要露脸重排一次", "给我封面和标题", "把字幕写得更自然"];
 type FlowStage = "cover" | "material" | "brief" | "inspiration" | "execute";
 type AssetIntent = NonNullable<MediaAsset["userIntent"]>;
 type LocalSettings = {
@@ -123,6 +124,8 @@ export default function Home() {
   const [reanalyzing, setReanalyzing] = useState(false);
   const [generating, setGenerating] = useState(false);
   const [routePackLoading, setRoutePackLoading] = useState(false);
+  const [followUpQuestion, setFollowUpQuestion] = useState("");
+  const [followUpLoading, setFollowUpLoading] = useState(false);
   const [savingAssetId, setSavingAssetId] = useState("");
   const [error, setError] = useState("");
   const [copied, setCopied] = useState("");
@@ -458,6 +461,29 @@ export default function Home() {
     URL.revokeObjectURL(url);
     setCopied("route-download");
     window.setTimeout(() => setCopied(""), 1400);
+  };
+
+  const askRouteFollowUp = async (question = followUpQuestion) => {
+    const trimmed = question.trim();
+    if (!project || !selectedIdea || !selectedRoutePack || !trimmed) return;
+    setFollowUpLoading(true);
+    setError("");
+    try {
+      const response = await fetch("/api/route-followup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projectId: project.id, ideaId: selectedIdea.id, question: trimmed }),
+      });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error ?? "继续追问失败。");
+      setProject(data.project);
+      setRouteExecutionPacks((current) => current.map((pack) => (pack.id === data.routePack.id ? data.routePack : pack)));
+      setFollowUpQuestion("");
+    } catch (followUpError) {
+      setError(followUpError instanceof Error ? followUpError.message : "继续追问失败。");
+    } finally {
+      setFollowUpLoading(false);
+    }
   };
 
   const addBriefChip = (chip: string) => {
@@ -1032,6 +1058,38 @@ export default function Home() {
                   </article>
                 ))}
               </div>
+              <section className="route-followup">
+                <div className="route-followup-head">
+                  <div><MessageSquareText size={16} /><strong>继续追问这条路线</strong><span>让灵感包继续往你的真实需求靠近</span></div>
+                  <small>{selectedRoutePack.followUps?.length ? `${selectedRoutePack.followUps.length} 条追问已写入执行包` : "回答会一起进入复制和 Markdown 导出"}</small>
+                </div>
+                <div className="followup-chips">
+                  {followUpQuickQuestions.map((question) => (
+                    <button disabled={followUpLoading} key={question} onClick={() => void askRouteFollowUp(question)} type="button">{question}</button>
+                  ))}
+                </div>
+                <div className="followup-input">
+                  <textarea
+                    onChange={(event) => setFollowUpQuestion(event.target.value)}
+                    placeholder="比如：帮我改成更适合抖音的前 3 秒；或者这条路线不要露脸怎么剪？"
+                    value={followUpQuestion}
+                  />
+                  <button disabled={followUpLoading || !followUpQuestion.trim()} onClick={() => void askRouteFollowUp()} type="button">
+                    {followUpLoading ? <LoaderCircle className="spin" size={15} /> : <WandSparkles size={15} />}
+                    {followUpLoading ? "正在追问" : "追问并写入"}
+                  </button>
+                </div>
+                {selectedRoutePack.followUps?.length ? (
+                  <div className="followup-answer-list">
+                    {selectedRoutePack.followUps.map((item) => (
+                      <article key={item.id}>
+                        <div><strong>{item.question}</strong><span>{item.source === "ai" ? `${item.provider ?? "AI"}${item.model ? ` · ${item.model}` : ""}` : "本地规则"}</span></div>
+                        <p>{item.answer}</p>
+                      </article>
+                    ))}
+                  </div>
+                ) : <p className="followup-empty">你可以继续问：更短怎么剪、不要露脸怎么剪、标题封面怎么做、某个镜头要不要保留。</p>}
+              </section>
               <section className="route-review"><strong>发布前复查</strong>{selectedRoutePack.finalReview.map((item) => <p key={item}>{item}</p>)}</section>
             </div>
           ) : <div className="timeline-empty">选定一条灵感路线后，这里会生成更细的镜头操作、字幕、声音、效果和避坑提醒。</div>}

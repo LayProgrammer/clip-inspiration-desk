@@ -71,6 +71,10 @@ export async function readStore(): Promise<StoreData> {
     data.ideas ??= [];
     data.timeline ??= [];
     data.routeExecutionPacks ??= [];
+    data.routeExecutionPacks = data.routeExecutionPacks.map((pack) => ({
+      ...pack,
+      followUps: pack.followUps ?? [],
+    }));
     data.inspirationReports ??= [];
     data.inspirationReports = data.inspirationReports.map(normalizeReport);
     data.media = data.media.map((asset) => ({
