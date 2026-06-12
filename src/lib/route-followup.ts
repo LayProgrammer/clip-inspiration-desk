@@ -20,6 +20,37 @@ function materialLines(media: MediaAsset[]) {
     .join("\n");
 }
 
+function targetDurationFromQuestion(question: string) {
+  const match = question.match(/(\d{1,3})\s*(秒|s|S)/);
+  if (!match) return undefined;
+  const seconds = Number(match[1]);
+  return Number.isFinite(seconds) && seconds >= 5 && seconds <= 180 ? seconds : undefined;
+}
+
+function followUpConstraints(question: string) {
+  const targetDuration = targetDurationFromQuestion(question);
+  const lines = [
+    "追问回答硬性约束：",
+    "- 不要编造不存在的素材、人物或动物；如果素材档案没有提到，就写“如果素材里确实有这类镜头再使用”。",
+    "- 所有新步骤都必须能用当前执行包或可用素材完成。",
+    "- 如果你给出新的时间线，结束时间必须递增，且每一步都要写清楚秒数范围。",
+  ];
+  if (targetDuration) {
+    lines.push(`- 用户要求压缩到 ${targetDuration} 秒左右：新执行顺序的最后结束时间不得超过 ${targetDuration} 秒，不要再输出 ${targetDuration} 秒以上的段落。`);
+    lines.push("- 回答里必须明确写出一版短清单，格式如：0-3s、3-8s、8-14s、14-20s。");
+  }
+  if (/不要露脸|不露脸|避开人脸|无露脸/.test(question)) {
+    lines.push("- 用户要求不要露脸：优先使用背影、手部、环境、运动轨迹、物件特写、天空/路面/建筑等非人脸画面。");
+  }
+  if (/标题|封面/.test(question)) {
+    lines.push("- 用户在问标题或封面：至少给 5 个标题和 3 个封面构图方向，标题要适合短视频平台。");
+  }
+  if (/字幕|文案|口播/.test(question)) {
+    lines.push("- 用户在问字幕/文案：给出可直接复制的字幕句子，不要只讲原则。");
+  }
+  return lines.join("\n");
+}
+
 function buildFollowUpPrompt(
   project: Project,
   idea: EditIdea,
@@ -52,6 +83,8 @@ function buildFollowUpPrompt(
     "",
     `用户追问：${question}`,
     "",
+    followUpConstraints(question),
+    "",
     "请按下面结构回答：",
     "1. 直接结论：一句话说明该怎么改。",
     "2. 具体改法：给 3-6 条操作，每条要说明镜头、字幕、声音或节奏怎么变。",
@@ -61,12 +94,18 @@ function buildFollowUpPrompt(
 }
 
 function localFollowUpAnswer(pack: RouteExecutionPack, question: string): string {
-  const lower = question.toLowerCase();
-  const wantsShorter = /短|20|15|精简|太长/.test(question);
+  const targetDuration = targetDurationFromQuestion(question);
+  const wantsShorter = Boolean(targetDuration) || /短|20|15|精简|太长/.test(question);
   const wantsFunny = /搞笑|幽默|反差|有趣/.test(question);
   const wantsTitle = /标题|封面|发布/.test(question);
   const wantsNoFace = /不要露脸|不露脸|避开人脸/.test(question);
   const steps = pack.checklist.slice(0, wantsShorter ? 4 : 5);
+  const shortTotal = targetDuration ?? 20;
+  const shortDurations = steps.map((_, index) => {
+    const start = Math.round((shortTotal / steps.length) * index);
+    const end = index === steps.length - 1 ? shortTotal : Math.round((shortTotal / steps.length) * (index + 1));
+    return `${start}-${end}s`;
+  });
 
   if (wantsTitle) {
     return [
@@ -96,13 +135,13 @@ function localFollowUpAnswer(pack: RouteExecutionPack, question: string): string
     "",
     "具体改法：",
     ...steps.map((step, index) => {
-      const duration = wantsShorter ? "控制在 2-4 秒" : `${step.startSec}-${step.endSec}s`;
+      const duration = wantsShorter ? shortDurations[index] : `${step.startSec}-${step.endSec}s`;
       const subtitle = wantsFunny ? "字幕改得更像一句轻反差吐槽" : wantsNoFace ? "字幕补充情绪，不解释人物身份" : `保留字幕方向：${step.subtitle}`;
       return `${index + 1}. ${step.assetName}：${duration}，${subtitle}，效果用“${step.effect}”，避开“${step.avoid}”。`;
     }),
     "",
-    "新的执行清单：",
-    ...steps.map((step, index) => `${index + 1}. ${step.purpose}：${step.assetName}`),
+    wantsShorter ? `新的 ${shortTotal} 秒执行清单：` : "新的执行清单：",
+    ...steps.map((step, index) => `${index + 1}. ${shortDurations[index] ?? `${step.startSec}-${step.endSec}s`} ${step.purpose}：${step.assetName}`),
     "",
     "复制到剪辑软件旁边看的短清单：先抓前 3 秒，删重复移动，字幕少解释，声音别盖过现场感，结尾留半秒余味。",
   ].join("\n");

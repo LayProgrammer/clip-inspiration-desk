@@ -104,6 +104,17 @@ function formatAssetFacts(asset: MediaAsset) {
   return facts.join(" / ");
 }
 
+function hasBrokenEncoding(value: string) {
+  const compact = value.replace(/\s/g, "");
+  if (!compact) return false;
+  const questionMarks = compact.match(/\?/g)?.length ?? 0;
+  return questionMarks >= 4 && questionMarks / compact.length > 0.28;
+}
+
+function readableFollowUpQuestion(question: string) {
+  return hasBrokenEncoding(question) ? "历史追问（旧版本编码异常）" : question;
+}
+
 export default function Home() {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const briefInputRef = useRef<HTMLTextAreaElement>(null);
@@ -154,6 +165,54 @@ export default function Home() {
     inspiration: "灵感",
     execute: "执行",
   }[flowStage];
+  const noviceCoach = useMemo(() => {
+    if (media.length === 0) {
+      return {
+        title: "先别想怎么剪，先把素材倒进来",
+        detail: "内测小白最容易卡在“我要先想主题”。这里建议先上传 3-10 条素材，系统会帮你找故事和开头。",
+        action: "上传素材",
+        status: "待开始",
+      };
+    }
+    if (!description.trim()) {
+      return {
+        title: "补一句目标，结果会更像你想要的片子",
+        detail: "比如“发抖音，20 秒内，不要露脸，想要生活感”。不用写专业术语，一句人话就够。",
+        action: "填写目标",
+        status: "缺目标",
+      };
+    }
+    if (activeIdeas.length === 0) {
+      return {
+        title: "现在可以生成灵感包了",
+        detail: "下一步会得到 3 条剪辑方向、素材体检、标题封面建议和可复制清单。",
+        action: "生成灵感",
+        status: "可生成",
+      };
+    }
+    if (!selectedRoutePack) {
+      return {
+        title: "把路线变成执行清单",
+        detail: "执行清单会按镜头顺序写明素材、字幕、声音、效果和避坑，方便放在剪映旁边照着做。",
+        action: "生成清单",
+        status: "待执行包",
+      };
+    }
+    if (flowStage !== "execute") {
+      return {
+        title: "执行清单已准备好，下一步就照着做",
+        detail: "先打开执行清单，再复制到剪映旁边。需要改短、不要露脸、换标题封面时，再用追问微调。",
+        action: "查看清单",
+        status: "可执行",
+      };
+    }
+    return {
+      title: "这份清单已经可以带去剪映了",
+      detail: "小白建议先复制执行包，再用追问微调：更短、不要露脸、标题封面、字幕口吻都可以继续问。",
+      action: "复制执行包",
+      status: "可开剪",
+    };
+  }, [activeIdeas.length, description, flowStage, media.length, selectedRoutePack]);
   const providerOptions = localSettings?.providerOptions ?? [];
   const selectedProviderOption = providerOptions.find((item) => item.id === settingsForm.provider);
 
@@ -561,6 +620,30 @@ export default function Home() {
     await copyText(builders[kind](), kind);
   };
 
+  const runNoviceNextStep = async () => {
+    if (media.length === 0) {
+      fileInputRef.current?.click();
+      return;
+    }
+    if (!description.trim()) {
+      openBriefStage();
+      return;
+    }
+    if (activeIdeas.length === 0) {
+      await generateIdeas();
+      return;
+    }
+    if (!selectedRoutePack && selectedIdea) {
+      await chooseRouteForExecution(selectedIdea.id);
+      return;
+    }
+    if (flowStage !== "execute") {
+      setFlowStage("execute");
+      return;
+    }
+    await copyRoutePack();
+  };
+
   if (loading || !project) {
     return (
       <main className="loading-screen">
@@ -729,6 +812,21 @@ export default function Home() {
             {generating ? <LoaderCircle className="spin" size={15} /> : <WandSparkles size={15} />}
             {activeIdeas.length > 0 ? "重新生成灵感" : "生成灵感包"}
           </button>
+        </section>
+
+        <section className="novice-coach" aria-label="小白下一步建议">
+          <div className="novice-coach-main">
+            <span><Gauge size={15} />{noviceCoach.status}</span>
+            <strong>{noviceCoach.title}</strong>
+            <p>{noviceCoach.detail}</p>
+          </div>
+          <div className="novice-coach-side">
+            <small>小白内测提示</small>
+            <button disabled={uploading || generating || routePackLoading} onClick={() => void runNoviceNextStep()} type="button">
+              {uploading || generating || routePackLoading ? <LoaderCircle className="spin" size={15} /> : <Target size={15} />}
+              {noviceCoach.action}
+            </button>
+          </div>
         </section>
 
         <section className="workflow-board" aria-label="灵感生成流程">
@@ -1083,7 +1181,8 @@ export default function Home() {
                   <div className="followup-answer-list">
                     {selectedRoutePack.followUps.map((item) => (
                       <article key={item.id}>
-                        <div><strong>{item.question}</strong><span>{item.source === "ai" ? `${item.provider ?? "AI"}${item.model ? ` · ${item.model}` : ""}` : "本地规则"}</span></div>
+                        <div><strong>{readableFollowUpQuestion(item.question)}</strong><span>{item.source === "ai" ? `${item.provider ?? "AI"}${item.model ? ` · ${item.model}` : ""}` : "本地规则"}</span></div>
+                        {hasBrokenEncoding(item.question) && <small className="followup-repaired">这条是早期内测记录，问题文本编码异常；回答内容仍保留。</small>}
                         <p>{item.answer}</p>
                       </article>
                     ))}
