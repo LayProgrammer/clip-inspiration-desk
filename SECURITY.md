@@ -1,10 +1,10 @@
-# Security Policy
+# 安全说明
 
-Clip Inspiration Desk is a local-first app. It does not run a hosted backend for your videos, API keys, or generated project data.
+剪辑灵感台是一个本地优先的软件。它没有托管你的视频、API key 或项目数据的中心服务器。
 
-## Do Not Commit Local Data
+## 不要提交本地数据
 
-Before publishing a fork or sharing a zip, make sure these paths are not included:
+公开仓库、发布 fork 或分享压缩包之前，请确认不要包含这些内容：
 
 - `.env`
 - `.env.local`
@@ -13,26 +13,43 @@ Before publishing a fork or sharing a zip, make sure these paths are not include
 - `.next/`
 - `node_modules/`
 
-Run this before publishing:
+发布前请运行：
 
 ```bash
 npm run prepublish:check
 ```
 
-## API Keys
+这个脚本会检查常见的误提交风险，例如真实 key、本地素材目录、生成目录等。
 
-API keys are stored locally in `.env.local`.
+## API key
 
-If an API key has ever appeared in a chat message, screenshot, commit, issue, log, or public document, treat it as exposed:
+API key 只应该保存在你本机的 `.env.local` 中，或通过应用里的“本地设置”面板写入。
 
-1. Revoke it in the provider dashboard.
-2. Create a new key.
-3. Store the new key only in `.env.local` or in the app's local settings panel.
+如果某个 API key 曾经出现在聊天记录、截图、提交记录、Issue、日志或公开文档里，请把它视为已经暴露：
 
-## AI Providers
+1. 到服务商后台废弃旧 key。
+2. 创建一个新的 key。
+3. 只把新 key 存在 `.env.local` 或本地设置面板里。
 
-When cloud AI is enabled, this app may send keyframes, file names, metadata, and your creative brief to the provider you configured. Do not use cloud AI mode with private, sensitive, unauthorized, or confidential footage.
+## AI 服务商
 
-## Reporting Security Issues
+启用云端 AI 后，应用可能会把关键帧、文件名、视频元数据和你的创作目标发送给你配置的 AI 服务商。
 
-For public forks, please open a GitHub security advisory or contact the repository owner privately. Do not post secrets, private footage, or exploit details in public issues.
+不要在云端 AI 模式下处理这些素材：
+
+- 隐私视频
+- 敏感证件或合同
+- 未经授权的人像素材
+- 公司保密素材
+- 任何你不希望第三方 AI 服务商看到的画面
+
+## 报告安全问题
+
+如果你发现安全问题，请优先通过 GitHub Security Advisory 或私下联系仓库维护者。
+
+不要在公开 Issue 里发布：
+
+- API key
+- 私人素材
+- 可复现攻击细节
+- 任何可能伤害其他用户的数据

@@ -1,70 +1,74 @@
-# Clip Inspiration Desk Local Beta
+# 剪辑灵感台 Local Beta
 
 剪辑灵感台是一个本地运行的 AI 剪辑灵感助手。
 
-它不是剪映、Premiere 或 CapCut 的替代品。它专注于剪辑前的决策：看懂素材、判断故事机会、给出剪辑路线，并生成可以带去剪映/Premiere/CapCut 执行的清单。
+它不是剪映、Premiere 或 CapCut 的替代品。它专注于剪辑前的决策：帮你看懂素材、判断故事机会、生成剪辑路线，并输出一份可以带去剪映、Premiere、CapCut 里照着做的执行清单。
 
-> Current status: Local Beta. Good for personal use, local experiments, open-source collaboration, and early feedback.
+> 当前状态：Local Beta。适合个人本地试用、开源协作、小范围反馈和二次开发。
 
-## What It Does
+## 它能做什么
 
-Core workflow:
+核心流程：
 
 ```text
-Import local videos
-  -> Extract thumbnail and keyframes
-  -> Read keyframes with a vision model
-  -> Diagnose material potential
-  -> Generate editing routes
-  -> Choose one route
-  -> Export a route execution pack
+导入本地视频
+  -> 自动抽取缩略图和关键帧
+  -> 使用视觉模型读帧
+  -> 生成素材体检报告
+  -> 生成剪辑路线
+  -> 选择一条路线
+  -> 导出路线执行包
 ```
 
-Main features:
+主要功能：
 
-- Local video import.
-- FFmpeg/FFprobe thumbnail and keyframe extraction.
-- Zhipu or OpenAI-compatible model support.
-- Local heuristic fallback when no API key is configured.
-- Material diagnosis report.
-- Three editing route suggestions.
-- Recommended first route.
-- Material basket controls:
-  - auto
-  - opening
-  - must-use
-  - ending
-  - avoid
-- Route-specific execution pack.
-- Copy execution pack.
-- Export execution pack as Markdown.
-- Local settings panel for provider, model, storage, and cleanup.
+- 本地导入视频素材。
+- 使用 FFmpeg/FFprobe 自动抽取缩略图和关键帧。
+- 支持智谱或 OpenAI-compatible 模型。
+- 没有 API key 时使用本地规则兜底。
+- 生成素材体检报告。
+- 生成 3 条剪辑路线。
+- 推荐最适合先剪的一条路线。
+- 素材篮控制：
+  - 自动判断
+  - 开头
+  - 必用
+  - 结尾
+  - 禁用
+- 针对选中路线生成专属执行包。
+- 复制执行包。
+- 导出 Markdown 执行包。
+- 本地设置面板：
+  - 配置 AI provider
+  - 配置模型
+  - 查看本地存储占用
+  - 清理本地素材和生成文件
 
-## What It Is Not
+## 它不做什么
 
-This project intentionally does not try to become:
+本项目刻意不做这些方向：
 
-- a full timeline editor
-- a Jianying/Premiere/CapCut replacement
-- a cloud video storage service
-- a social publishing platform
-- a template marketplace
-- a multi-user account system
+- 完整时间线剪辑器
+- 剪映、Premiere、CapCut 的替代品
+- 云端素材托管
+- 社交发布平台
+- 模板商城
+- 多人账号系统
 
-The goal is to help you decide what to cut before you open a real editor.
+这个工具的目标是在你打开真正的剪辑软件之前，先帮你想清楚“这批素材到底应该怎么剪”。
 
-## Privacy Model
+## 本地隐私模型
 
-This app is local-first.
+本项目优先本地运行。
 
-Local files:
+本地文件位置：
 
-- uploaded videos: `storage/uploads/`
-- project and idea data: `storage/data.json`
-- thumbnails and keyframes: `public/generated/`
-- AI configuration: `.env.local`
+- 上传视频：`storage/uploads/`
+- 项目和灵感数据：`storage/data.json`
+- 缩略图和关键帧：`public/generated/`
+- AI 配置：`.env.local`
 
-Ignored by Git:
+这些内容不会被 Git 提交：
 
 - `.env`
 - `.env.local`
@@ -73,30 +77,32 @@ Ignored by Git:
 - `.next/`
 - `node_modules/`
 
-When cloud AI is enabled, this app may send keyframes, file names, video metadata, and your creative brief to the AI provider you configured. Do not use cloud AI mode with private, sensitive, unauthorized, or confidential footage.
+如果你启用了云端 AI，应用可能会把关键帧、文件名、视频基础信息和你填写的创作目标发送给你配置的 AI 服务商。请不要在云端 AI 模式下处理隐私、敏感、未经授权或保密素材。
 
-More details: [PRIVACY.md](./PRIVACY.md)
+更多说明见：[PRIVACY.md](./PRIVACY.md)
 
-## Quick Start
+## 快速开始
 
-### Option 1: Windows Double-Click
+### 方式一：Windows 双击启动
 
-1. Install Node.js 20 or newer.
-2. Download this project.
-3. Double-click:
+1. 安装 Node.js 20 或更新版本。
+2. 下载本项目。
+3. 双击：
 
 ```text
 start-windows.bat
 ```
 
-The script will:
+脚本会自动：
 
-- create `.env.local` from `.env.example` if missing
-- install dependencies if needed
-- start the local app
-- open `http://localhost:3001`
+- 如果缺少 `.env.local`，从 `.env.example` 创建一个
+- 如果缺少依赖，执行 `npm install`
+- 启动本地应用
+- 打开 `http://localhost:3001`
 
-### Option 2: Command Line
+### 方式二：命令行启动
+
+Windows：
 
 ```bash
 npm install
@@ -104,30 +110,31 @@ copy .env.example .env.local
 npm run dev:local
 ```
 
-Open:
+macOS / Linux：
+
+```bash
+npm install
+cp .env.example .env.local
+npm run dev:local
+```
+
+然后打开：
 
 ```text
 http://localhost:3001
 ```
 
-On macOS/Linux, use:
+## 配置 AI
 
-```bash
-cp .env.example .env.local
-npm run dev:local
-```
-
-## Configure AI
-
-You can use the app without a key:
+不配置 key 也可以使用：
 
 ```bash
 AI_PROVIDER=local
 ```
 
-In local mode, the app uses heuristic rules and does not call a cloud vision model.
+本地模式会使用规则生成基础灵感，不会调用云端视觉模型。
 
-To enable Zhipu:
+启用智谱：
 
 ```bash
 AI_PROVIDER=zhipu
@@ -137,7 +144,7 @@ ZHIPU_MODEL=glm-4-flash
 ZHIPU_VISION_MODEL=glm-4v-flash
 ```
 
-To enable OpenAI or an OpenAI-compatible endpoint:
+启用 OpenAI 或 OpenAI-compatible 中转站：
 
 ```bash
 AI_PROVIDER=openai
@@ -147,11 +154,11 @@ OPENAI_MODEL=gpt-5.1-mini
 OPENAI_VISION_MODEL=gpt-5.1-mini
 ```
 
-You can also configure these in the app's local settings panel.
+也可以在应用右上角的“本地设置”面板里配置这些内容。
 
-Never commit real API keys.
+不要提交真实 API key。
 
-## Development
+## 开发命令
 
 ```bash
 npm run dev:local
@@ -160,63 +167,63 @@ npm run build
 npm run prepublish:check
 ```
 
-Known build note:
+已知构建提示：
 
-`next build` may show a Turbopack NFT tracing warning related to local settings reading `.env.local` and scanning local storage folders. The build succeeds and the app works. This is currently documented as a known Local Beta issue.
+`next build` 可能会出现一个 Turbopack NFT tracing warning，来源是本地设置接口需要读取 `.env.local` 并统计本地存储目录。当前构建会成功，功能不受影响。这个问题已作为 Local Beta 已知情况记录。
 
-## Open Source Safety Check
+## 开源前安全检查
 
-Before publishing a fork or repository, run:
+发布 fork 或公开仓库前，请运行：
 
 ```bash
 npm run prepublish:check
 ```
 
-Also confirm manually:
+也请手动确认：
 
-- `.env.local` is not committed.
-- `storage/` is not committed.
-- `public/generated/` is not committed.
-- no real footage is committed.
-- no real API key is committed.
+- `.env.local` 没有被提交。
+- `storage/` 没有被提交。
+- `public/generated/` 没有被提交。
+- 没有真实视频素材被提交。
+- 没有真实 API key 被提交。
 
-If an API key was ever pasted into a chat, screenshot, issue, commit, or public document, revoke it in the provider dashboard and create a new one.
+如果某个 API key 曾经出现在聊天、截图、Issue、提交记录或公开文档里，请到服务商后台废弃旧 key，并重新生成一个新 key。
 
-Release checklist: [docs/OPEN_SOURCE_RELEASE.md](./docs/OPEN_SOURCE_RELEASE.md)
+发布清单见：[docs/OPEN_SOURCE_RELEASE.md](./docs/OPEN_SOURCE_RELEASE.md)
 
-## Project Files
+## 项目结构
 
 ```text
-src/app/                 Next.js app and local API routes
-src/lib/                 idea engine, AI provider adapters, storage, video analysis
-docs/                    project memory and release notes
-storage/                 local project data, ignored by Git
-public/generated/        local thumbnails and keyframes, ignored by Git
+src/app/                 Next.js 页面和本地 API
+src/lib/                 灵感生成、AI 适配、存储、视频分析
+docs/                    项目记录和发布说明
+storage/                 本地项目数据，Git 已忽略
+public/generated/        本地缩略图和关键帧，Git 已忽略
 ```
 
-## Roadmap
+## 路线图
 
-Good next steps:
+值得继续做的方向：
 
-- first-run setup guide
-- material basket notes
-- regenerate current route pack with an adjustment prompt
-- more provider presets
-- safer release packaging for non-technical Windows users
-- desktop packaging research, likely Tauri or Electron later
+- 首次启动向导
+- 素材篮备注
+- 对当前路线执行包进行二次调整
+- 更多 OpenAI-compatible 服务商预设
+- 面向非技术用户的 Windows 安装包
+- 桌面版封装预研，后续可考虑 Tauri 或 Electron
 
-## Security
+## 安全
 
-See [SECURITY.md](./SECURITY.md).
+见：[SECURITY.md](./SECURITY.md)
 
-## Contributing
+## 参与贡献
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md).
+见：[CONTRIBUTING.md](./CONTRIBUTING.md)
 
-## Changelog
+## 更新日志
 
-See [CHANGELOG.md](./CHANGELOG.md).
+见：[CHANGELOG.md](./CHANGELOG.md)
 
 ## License
 
-MIT. See [LICENSE](./LICENSE).
+MIT。见：[LICENSE](./LICENSE)
